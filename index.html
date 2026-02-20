@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medieval Hangman with Hints</title>
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #2c1e16; 
+            background-image: url('https://www.transparenttextures.com/patterns/dark-leather.png');
+        }
+
+        .scroll { 
+            max-width: 700px; 
+            width: 90%;
+            background: #d9b99b; 
+            background-image: url('https://www.transparenttextures.com/patterns/parchment.png');
+            border: 10px solid #5d4037;
+            border-image: radial-gradient(#8d6e63, #3e2723) 1;
+            padding: 40px; 
+            border-radius: 5px; 
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+            color: #2b1d0e;
+            text-align: center;
+            font-family: 'Palatino Linotype', 'Book Antiqua', Palatino, serif;
+        }
+
+        h1 { font-size: 3em; margin-bottom: 10px; border-bottom: 2px double #5d4037; }
+        
+        #hangman-visual { 
+            font-family: 'Courier New', monospace; white-space: pre; 
+            font-size: 24px; line-height: 1.1; margin: 20px auto; 
+            background: rgba(0,0,0,0.05); padding: 20px; border-radius: 10px;
+            display: inline-block; font-weight: bold; border: 1px solid #bc9b7b;
+        }
+
+        #word-display { font-size: 40px; letter-spacing: 15px; margin: 20px 0; font-weight: bold; }
+        
+        .btn { 
+            padding: 12px 25px; margin: 5px; cursor: pointer; 
+            background: #5d4037; color: #f1e5ac; border: 2px solid #3e2723;
+            border-radius: 3px; font-weight: bold; text-transform: uppercase;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
+        }
+        .btn:hover:not(:disabled) { background: #795548; transform: translateY(-2px); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .hint-btn { background: #8d6e63; font-size: 0.9em; }
+
+        #keyboard { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 20px; }
+        .key { 
+            width: 45px; height: 45px; cursor: pointer; background: #c4a484; 
+            border: 2px solid #5d4037; font-weight: bold; font-size: 1.2em;
+            border-radius: 4px; transition: 0.2s;
+        }
+        .key.disabled { opacity: 0.5; cursor: not-allowed; }
+        .key.correct { background: #4caf50 !important; color: white; }
+        .key.wrong { background: #b71c1c !important; color: white; }
+
+        #message { font-size: 22px; font-weight: bold; margin: 15px 0; min-height: 28px; }
+        #clue-text { font-style: italic; color: #5d4037; margin-bottom: 10px; font-weight: bold; }
+        .victory { color: #1b5e20; }
+        .defeat { color: #b71c1c; }
+    </style>
+</head>
+<body>
+
+<div class="scroll">
+    <h1>Hangman</h1>
+
+    <div id="menu">
+        <p>Select a category to play:</p>
+        <button class="btn" onclick="startGame('sports')">Sports</button>
+        <button class="btn" onclick="startGame('foods')">Foods</button>
+        <button class="btn" onclick="startGame('hobbies')">Hobbies</button>
+    </div>
+
+    <div id="game-area" style="display:none;">
+        <p id="category-title" style="text-transform: uppercase; font-weight: bold; margin: 0;"></p>
+        <div id="hangman-visual"></div>
+        <div id="word-display"></div>
+        
+        <div id="clue-text"></div>
+        <div id="message">Guess a letter!</div>
+
+        <button class="btn hint-btn" id="hint-btn" onclick="revealHint()">Reveal a Letter (Costs 1 Life)</button>
+        
+        <div id="keyboard"></div>
+        <br>
+        <button class="btn" id="rematch-btn" style="display:none;" onclick="resetToMenu()">New Game</button>
+    </div>
+</div>
+
+<script>
+    // MASSIVE DICTIONARY START
+    const categories = {
+        sports: [
+            {w: "ARCHERY", h: "Uses a bow and arrows to hit a target."},
+            {w: "BADMINTON", h: "Uses a net and a feathered shuttlecock."},
+            {w: "BASEBALL", h: "Played with a bat, ball, and three bases."},
+            {w: "BASKETBALL", h: "Shooting an orange ball into a hoop."},
+            {w: "BIATHLON", h: "Combines cross-country skiing and rifle shooting."},
+            {w: "BILLIARDS", h: "Played on a felt table with a cue stick."},
+            {w: "BOBSLEIGH", h: "Teams make timed runs down narrow, twisting ice tracks."},
+            {w: "BOCCIE", h: "Italian bowling game played on a dirt court."},
+            {w: "BODYBOARDING", h: "Riding a wave toward the shore while lying down."},
+            {w: "BOUNCEBALL", h: "A fast-paced sport played on a small court with a net."},
+            {w: "BOWLING", h: "Knocking down pins with a heavy ball."},
+            {w: "BOXING", h: "Two people fighting with padded gloves."},
+            {w: "BULLRIDING", h: "Rodeo sport where a rider stays on a large animal."},
+            {w: "BUNGEE", h: "Jumping from a high place while attached to a cord."},
+            {w: "CANOEING", h: "Paddling a small, narrow boat."},
+            {w: "CRICKET", h: "Popular UK sport with a bat and a wicket."},
+            {w: "CURLING", h: "Sliding stones on ice towards a target circle."},
+            {w: "CYCLING", h: "Racing or traveling on a bicycle."},
+            {w: "DARTS", h: "Throwing small pointed missiles at a circular board."},
+            {w: "DODGEBALL", h: "Avoid being hit by balls thrown by opponents."},
+            {w: "FENCING", h: "Combat sport involving swords called foils."},
+            {w: "FOOTBALL", h: "The world's most popular sport; involves kicking."},
+            {w: "GOLF", h: "Hitting a small ball into a series of holes."},
+            {w: "GYMNASTICS", h: "Exercises requiring balance, strength, and flexibility."},
+            {w: "HOCKEY", h: "Played on ice or grass with sticks and a puck."},
+            {w: "KARATE", h: "Japanese martial art focusing on strikes."},
+            {w: "LACROSSE", h: "Uses a stick with a net to catch a ball."},
+            {w: "RUGBY", h: "Full-contact sport with an oval-shaped ball."},
+            {w: "SAILING", h: "Travel on water in a vessel moved by wind."},
+            {w: "SKATEBOARDING", h: "Riding and performing tricks on a wooden board."},
+            {w: "SWIMMING", h: "Moving through water using your limbs."},
+            {w: "TENNIS", h: "Hitting a ball over a net with a racket."},
+            {w: "VOLLEYBALL", h: "Hitting a ball over a net with hands."},
+            {w: "WRESTLING", h: "Combat sport involving grappling and holds."}
+        ],
+        foods: [
+            {w: "APPLE", h: "A crunchy fruit that can be red, green, or yellow."},
+            {w: "ARTICHOKE", h: "A prickly green vegetable with a 'heart'."},
+            {w: "ASPARAGUS", h: "Long green stalks often grilled or steamed."},
+            {w: "AVOCADO", h: "The main ingredient in guacamole."},
+            {w: "BAGUETTE", h: "A long, thin loaf of French bread."},
+            {w: "BANANA", h: "A long, curved yellow fruit."},
+            {w: "BEETROOT", h: "A dark red root vegetable."},
+            {w: "BLUEBERRY", h: "Small, round purple fruit often in muffins."},
+            {w: "BROCCOLI", h: "A green vegetable that looks like a tiny tree."},
+            {w: "BURRITO", h: "Mexican dish wrapped in a flour tortilla."},
+            {w: "CABBAGE", h: "Leafy vegetable used to make sauerkraut or slaw."},
+            {w: "CAULIFLOWER", h: "A white, head-shaped vegetable similar to broccoli."},
+            {w: "CHERRY", h: "A small, round red fruit with a stone."},
+            {w: "CHICKPEA", h: "Legume used to make hummus."},
+            {w: "CROISSANT", h: "Buttery, flaky French pastry shaped like a crescent."},
+            {w: "DRAGONFRUIT", h: "Exotic fruit with pink skin and black seeds."},
+            {w: "EGGPLANT", h: "Large purple vegetable used in Parmesan dishes."},
+            {w: "FALAFEL", h: "Deep-fried ball made from ground chickpeas."},
+            {w: "GARLIC", h: "Pungent bulb used to flavor food and scare vampires."},
+            {w: "GRAPE", h: "Small fruit used to make wine or raisins."},
+            {w: "HAMBURGER", h: "Ground meat patty served in a bun."},
+            {w: "HUMMUS", h: "Creamy dip made from chickpeas and tahini."},
+            {w: "LASAGNA", h: "Layered pasta with cheese and meat sauce."},
+            {w: "LEMON", h: "A sour, yellow citrus fruit."},
+            {w: "MUSHROOM", h: "A fungus that grows in the dark; can be edible."},
+            {w: "OMELETTE", h: "Beaten eggs cooked with cheese or vegetables."},
+            {w: "ONION", h: "Layered vegetable that might make you cry."},
+            {w: "ORANGE", h: "Citrus fruit named after its own color."},
+            {w: "PASTA", h: "Italian staple made from flour and water."},
+            {w: "PIZZA", h: "Flatbread topped with tomato and cheese."},
+            {w: "POTATO", h: "Starchy tuber used for fries or mash."},
+            {w: "SPAGHETTI", h: "Long, thin strings of Italian pasta."},
+            {w: "SUSHI", h: "Japanese dish with vinegared rice and raw fish."},
+            {w: "TACO", h: "Mexican dish with a hard or soft shell."},
+            {w: "TOMATO", h: "A red fruit often mistaken for a vegetable."},
+            {w: "WAFFLE", h: "Breakfast dish with a grid pattern."},
+            {w: "YOGURT", h: "Fermented milk product often eaten with fruit."}
+        ],
+        hobbies: [
+            {w: "ACTING", h: "Performing a character on stage or screen."},
+            {w: "ANIME", h: "A style of Japanese animation."},
+            {w: "ASTRONOMY", h: "Studying the stars and planets."},
+            {w: "BAKING", h: "Cooking bread or cakes in an oven."},
+            {w: "BEATBOXING", h: "Making drum sounds with your mouth."},
+            {w: "BEEKEEPING", h: "Maintaining hives to collect honey."},
+            {w: "CHESS", h: "Strategy board game with a King and Queen."},
+            {w: "COOKING", h: "Preparing food for a meal."},
+            {w: "COSPLAY", h: "Dressing up as a character from a movie or game."},
+            {w: "CROCHET", h: "Creating fabric using a single hooked needle."},
+            {w: "DANCING", h: "Moving rhythmically to music."},
+            {w: "DRAWING", h: "Creating art with a pencil or pen."},
+            {w: "FISHING", h: "Trying to catch creatures from the water."},
+            {w: "GAMING", h: "Playing electronic or board games."},
+            {w: "GARDENING", h: "Growing flowers or vegetables in soil."},
+            {w: "GUITAR", h: "Stringed instrument often played in rock music."},
+            {w: "HIKING", h: "Long walks in nature or up mountains."},
+            {w: "JOURNALING", h: "Keeping a daily record of your thoughts."},
+            {w: "JUGGLING", h: "Keeping several objects in the air at once."},
+            {w: "KARAOKE", h: "Singing along to a backing track."},
+            {w: "KNITTING", h: "Using two needles to make clothing from yarn."},
+            {w: "MEDITATION", h: "Practice of focusing the mind and relaxing."},
+            {w: "ORIGAMI", h: "The Japanese art of paper folding."},
+            {w: "PAINTING", h: "Using brushes and colors to create art."},
+            {w: "PHOTOGRAPHY", h: "Taking pictures with a camera."},
+            {w: "PIANO", h: "Musical instrument with 88 black and white keys."},
+            {w: "POTTERY", h: "Making vases or bowls from clay."},
+            {w: "READING", h: "Looking at and understanding written words."},
+            {w: "RUNNING", h: "Moving fast on foot for exercise."},
+            {w: "SINGING", h: "Using your voice to make music."},
+            {w: "SURFING", h: "Riding a board on ocean waves."},
+            {w: "YOGA", h: "Physical and mental practice involving stretching."}
+        ]
+    };
+    // MASSIVE DICTIONARY END
+
+    let selectedWord = "";
+    let selectedHint = "";
+    let currentCategory = "";
+    let guessedLetters = [];
+    let wrongGuesses = 0;
+    const maxGuesses = 6;
+
+    const stages = [
+        `  +---+\n  |   |\n      |\n      |\n      |\n      |\n=========`,
+        `  +---+\n  |   |\n  O   |\n      |\n      |\n      |\n=========`,
+        `  +---+\n  |   |\n  O   |\n  |   |\n      |\n      |\n=========`,
+        `  +---+\n  |   |\n  O   |\n /|   |\n      |\n      |\n=========`,
+        `  +---+\n  |   |\n  O   |\n /|\\  |\n      |\n      |\n=========`,
+        `  +---+\n  |   |\n  O   |\n /|\\  |\n /    |\n      |\n=========`,
+        `  +---+\n  |   |\n  O   |\n /|\\  |\n / \\  |\n      |\n=========`
+    ];
+
+    function startGame(cat) {
+        currentCategory = cat;
+        document.getElementById("menu").style.display = "none";
+        document.getElementById("game-area").style.display = "block";
+        document.getElementById("category-title").innerText = "Category: " + cat;
+        
+        // Pick a random object from the category
+        let randomObj = categories[cat][Math.floor(Math.random() * categories[cat].length)];
+        selectedWord = randomObj.w.toUpperCase();
+        selectedHint = randomObj.h; // Store the specific clue
+        
+        guessedLetters = [];
+        wrongGuesses = 0;
+        
+        document.getElementById("message").innerText = "Guess a letter!";
+        document.getElementById("message").className = "";
+        document.getElementById("clue-text").innerText = "";
+        document.getElementById("rematch-btn").style.display = "none";
+        document.getElementById("hint-btn").disabled = false;
+        
+        createKeyboard();
+        updateDisplay();
+    }
+
+    function createKeyboard() {
+        const kb = document.getElementById("keyboard");
+        kb.innerHTML = "";
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").forEach(l => {
+            const b = document.createElement("button");
+            b.innerText = l;
+            b.className = "key";
+            b.id = "key-" + l;
+            b.onclick = () => handleGuess(l);
+            kb.appendChild(b);
+        });
+    }
+
+    function revealHint() {
+        if (wrongGuesses >= maxGuesses - 1) {
+            document.getElementById("message").innerText = "Not enough lives for a hint!";
+            return;
+        }
+
+        let unrevealed = selectedWord.split('').filter(l => l !== " " && !guessedLetters.includes(l));
+        
+        if (unrevealed.length > 0) {
+            let randomLetter = unrevealed[Math.floor(Math.random() * unrevealed.length)];
+            
+            wrongGuesses++;
+            
+            // Show the specific clue text
+            document.getElementById("clue-text").innerText = "Hint: " + selectedHint;
+            
+            handleGuess(randomLetter);
+        }
+    }
+
+    function handleGuess(l) {
+        if (guessedLetters.includes(l) || wrongGuesses >= maxGuesses) return;
+        guessedLetters.push(l);
+        const btn = document.getElementById("key-" + l);
+        if (btn) btn.classList.add("disabled");
+
+        if (selectedWord.includes(l)) {
+            if (btn) btn.classList.add("correct");
+        } else {
+            if (btn) btn.classList.add("wrong");
+            wrongGuesses++;
+        }
+        updateDisplay();
+        checkGameStatus();
+    }
+
+    function updateDisplay() {
+        const disp = selectedWord.split('').map(l => (guessedLetters.includes(l) || l === " " ? l : "_")).join(" ");
+        document.getElementById("word-display").innerText = disp;
+        document.getElementById("hangman-visual").innerText = stages[wrongGuesses] || stages[6];
+    }
+
+    function checkGameStatus() {
+        const win = selectedWord.split('').every(l => guessedLetters.includes(l) || l === " ");
+        if (win) {
+            document.getElementById("message").innerText = "Congratulations! You Won!";
+            document.getElementById("message").className = "victory";
+            endGame();
+        } else if (wrongGuesses >= maxGuesses) {
+            document.getElementById("message").innerText = "Game Over! The word was " + selectedWord;
+            document.getElementById("message").className = "defeat";
+            endGame();
+        }
+    }
+
+    function endGame() {
+        document.querySelectorAll(".key").forEach(k => k.classList.add("disabled"));
+        document.getElementById("rematch-btn").style.display = "inline-block";
+        document.getElementById("hint-btn").disabled = true;
+    }
+
+    function resetToMenu() {
+        document.getElementById("game-area").style.display = "none";
+        document.getElementById("menu").style.display = "block";
+    }
+
+    window.addEventListener("keydown", e => {
+        const l = e.key.toUpperCase();
+        if (/[A-Z]/.test(l) && l.length === 1 && document.getElementById("game-area").style.display !== "none") {
+            handleGuess(l);
+        }
+    });
+</script>
+</body>
+</html>
